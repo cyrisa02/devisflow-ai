@@ -89,7 +89,8 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Erreur quote generation:", error);
 
-    if (error instanceof z.ZodError) {
+    // Type guard explicite pour ZodError
+    if (z.ZodError.is(error)) {
       return NextResponse.json(
         { error: "Réponse IA invalide", details: error.errors },
         { status: 422 },
