@@ -3,8 +3,8 @@ import OpenAI from "openai";
 import { createClient } from "@supabase/supabase-js";
 import { z } from "zod";
 import { QuoteSchema } from "@/lib/schemas";
+import { sendQuoteConfirmation } from "@/lib/email";
 
-// Groq utilise une API compatible OpenAI
 const groq = new OpenAI({
   apiKey: process.env.GROQ_API_KEY,
   baseURL: "https://api.groq.com/openai/v1",
@@ -39,10 +39,12 @@ Règles :
 - Maximum 3 questions complémentaires pertinentes
 - Sois précis sur la description technique`;
 }
-
 export async function POST(request: Request) {
   try {
-    const { description } = await request.json();
+    const body = await request.json();
+    console.log("Body reçu:", body);
+
+    const { description, email } = body;
 
     if (!description || description.trim().length < 10) {
       return NextResponse.json(
@@ -51,6 +53,14 @@ export async function POST(request: Request) {
       );
     }
 
+    if (!email || !email.includes("@")) {
+      return NextResponse.json({ error: "Email invalide" }, { status: 400 });
+    }
+    if (!email || !email.includes("@")) {
+      return NextResponse.json({ error: "Email invalide" }, { status: 400 });
+    }
+
+    // Appel à Qwen via Groq
     const completion = await groq.chat.completions.create({
       model: "qwen/qwen3.8-27b",
       messages: [
@@ -70,13 +80,16 @@ export async function POST(request: Request) {
 
     const parsed = JSON.parse(cleanContent || "{}");
 
+    // Validation Zod
     const validatedQuote = QuoteSchema.parse(parsed);
 
+    // Insertion en base
     const { data, error } = await supabase
       .from("quotes")
       .insert({
         ...validatedQuote,
         description_client: description,
+        client_email: email,
         status: "pending",
         created_at: new Date().toISOString(),
       })
@@ -84,6 +97,21 @@ export async function POST(request: Request) {
       .single();
 
     if (error) throw error;
+
+    // Envoi automatique de l'email au client (non bloquant)
+    try {
+      await sendQuoteConfirmation({
+        clientEmail: email,
+        typePanne: validatedQuote.type_panne,
+        urgence: validatedQuote.urgence,
+        estimationMin: validatedQuote.estimation_prix_min,
+        estimationMax: validatedQuote.estimation_prix_max,
+        descriptionTechnique: validatedQuote.description_technique,
+      });
+    } catch (emailError) {
+      console.error("Erreur envoi email:", emailError);
+      // On ne bloque pas la réponse si l'email échoue
+    }
 
     return NextResponse.json({ quote: data }, { status: 201 });
   } catch (error: unknown) {

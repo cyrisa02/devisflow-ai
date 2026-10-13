@@ -4,6 +4,7 @@ import { useState } from "react";
 
 export default function Home() {
   const [description, setDescription] = useState("");
+  const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
@@ -18,7 +19,7 @@ export default function Home() {
       const res = await fetch("/api/quotes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ description }),
+        body: JSON.stringify({ description, email }),
       });
 
       const data = await res.json();
@@ -46,6 +47,20 @@ export default function Home() {
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
+              Votre email
+            </label>
+            <input
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="votre@email.com"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
               Description du problème
             </label>
             <textarea
@@ -61,7 +76,7 @@ export default function Home() {
 
           <button
             type="submit"
-            disabled={loading || description.length < 10}
+            disabled={loading || description.length < 10 || !email}
             className="w-full bg-blue-600 text-white font-semibold py-3 px-6 rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
           >
             {loading ? "Analyse en cours..." : "Générer un devis"}
