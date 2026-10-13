@@ -86,13 +86,13 @@ export async function POST(request: Request) {
     if (error) throw error;
 
     return NextResponse.json({ quote: data }, { status: 201 });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error("Erreur quote generation:", error);
 
-    // Type guard explicite pour ZodError
-    if (z.ZodError.is(error)) {
+    const err = error as any;
+    if (err?.name === "ZodError") {
       return NextResponse.json(
-        { error: "Réponse IA invalide", details: error.errors },
+        { error: "Réponse IA invalide", details: err.errors },
         { status: 422 },
       );
     }
