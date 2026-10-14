@@ -30,14 +30,50 @@ export default function ChatPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    if (file.size > 10 * 1024 * 1024) {
-      alert("Image trop lourde (max 10MB)");
+    if (file.size > 15 * 1024 * 1024) {
+      alert("Image trop lourde (max 15MB avant compression)");
       return;
     }
 
     const reader = new FileReader();
-    reader.onload = () => {
-      setImage(reader.result as string);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        // Créer un canvas pour compresser
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+
+        // Redimensionner à max 1024px de large (suffisant pour Qwen)
+        const MAX_WIDTH = 1024;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > MAX_WIDTH) {
+          height = (height * MAX_WIDTH) / width;
+          width = MAX_WIDTH;
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        // Dessiner l'image redimensionnée
+        ctx?.drawImage(img, 0, 0, width, height);
+
+        // Convertir en JPEG compressé (qualité 0.7 = bon compromis)
+        const compressedBase64 = canvas.toDataURL("image/jpeg", 0.7);
+
+        // Vérifier la taille finale
+        const sizeInBytes = (compressedBase64.length * 3) / 4;
+        if (sizeInBytes > 900 * 1024) {
+          alert(
+            "Image encore trop lourde après compression. Essayez une image plus petite.",
+          );
+          return;
+        }
+
+        setImage(compressedBase64);
+      };
+      img.src = event.target?.result as string;
     };
     reader.readAsDataURL(file);
   };
