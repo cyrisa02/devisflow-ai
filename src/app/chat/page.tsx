@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 
@@ -15,6 +16,8 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [image, setImage] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [userEmail, setUserEmail] = useState("");
+  const [showEmailField, setShowEmailField] = useState(true);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -27,7 +30,6 @@ export default function ChatPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Limiter à 10MB pour éviter de saturer Groq
     if (file.size > 10 * 1024 * 1024) {
       alert("Image trop lourde (max 10MB)");
       return;
@@ -54,11 +56,19 @@ export default function ChatPage() {
   };
 
   const sendMessage = async () => {
-    if (!input.trim() && !image) return;
+    if ((!input.trim() && !image) || (showEmailField && !userEmail.trim())) {
+      alert("Veuillez remplir votre email et décrire votre problème");
+      return;
+    }
+
+    let userContent = input.trim();
+    if (userEmail && !userContent.includes("Email")) {
+      userContent = `Email : ${userEmail}\n\n${userContent}`;
+    }
 
     const userMessage: Message = {
       role: "user",
-      content: input.trim(),
+      content: userContent,
       image: image || undefined,
     };
 
@@ -66,9 +76,9 @@ export default function ChatPage() {
     setMessages(newMessages);
     setInput("");
     setImage(null);
+    setShowEmailField(false); // On cache le champ email après le premier message
     setLoading(true);
 
-    // Reset hauteur textarea
     if (textareaRef.current) textareaRef.current.style.height = "auto";
 
     try {
@@ -110,17 +120,48 @@ export default function ChatPage() {
 
   return (
     <div className="flex flex-col h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white border-b px-6 py-4 shadow-sm flex-shrink-0">
-        <h1 className="text-xl font-semibold text-gray-800">Vision Chat</h1>
-        <p className="text-sm text-gray-500">Qwen 3.8 27B via Groq</p>
+      {/* Header avec bouton retour */}
+      <header className="bg-white border-b px-6 py-4 shadow-sm flex-shrink-0 flex items-center justify-between">
+        <div className="flex items-center gap-4">
+          <Link
+            href="/"
+            className="text-gray-600 hover:text-blue-600 font-medium flex items-center gap-2"
+          >
+            <svg
+              className="w-5 h-5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M10 19l-7-7m0 0l7-7m-7 7h18"
+              />
+            </svg>
+            Accueil
+          </Link>
+          <div className="h-6 w-px bg-gray-300" />
+          <div>
+            <h1 className="text-xl font-semibold text-gray-800">Vision Chat</h1>
+            <p className="text-sm text-gray-500">
+              Devis instantané tous corps d'état
+            </p>
+          </div>
+        </div>
       </header>
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto p-6 space-y-4">
         {messages.length === 0 && (
           <div className="text-center text-gray-400 mt-20">
-            <p className="text-lg">Pose une question avec ou sans image</p>
+            <p className="text-lg mb-2">
+              Décrivez votre problème avec ou sans photo
+            </p>
+            <p className="text-sm">
+              Plomberie • Électricité • Maçonnerie • Rénovation
+            </p>
           </div>
         )}
 
@@ -132,7 +173,7 @@ export default function ChatPage() {
             }`}
           >
             <div
-              className={`max-w-2xl rounded-2xl px-4 py-3 ${
+              className={`max-w-3xl rounded-2xl px-4 py-3 ${
                 msg.role === "user"
                   ? "bg-blue-600 text-white"
                   : "bg-white border border-gray-200 text-gray-800"
@@ -194,6 +235,23 @@ export default function ChatPage() {
           </div>
         )}
 
+        {/* Champ email - affiché uniquement au début */}
+        {showEmailField && (
+          <div className="mb-3">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Votre email *
+            </label>
+            <input
+              type="email"
+              value={userEmail}
+              onChange={(e) => setUserEmail(e.target.value)}
+              placeholder="vous@exemple.com"
+              className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              required
+            />
+          </div>
+        )}
+
         <div className="flex gap-2 items-center">
           <input
             type="file"
@@ -232,7 +290,7 @@ export default function ChatPage() {
               autoResize();
             }}
             onKeyDown={handleKeyDown}
-            placeholder="Pose ta question..."
+            placeholder="Décrivez votre problème (plomberie, électricité, maçonnerie...)"
             rows={1}
             className="flex-1 border border-gray-300 rounded-lg px-4 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[42px] max-h-[200px]"
             disabled={loading}
