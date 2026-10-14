@@ -1,11 +1,13 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
 interface Message {
   role: "user" | "assistant";
   content: string;
-  image?: string; // base64
+  image?: string;
 }
 
 export default function ChatPage() {
@@ -15,6 +17,7 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -23,6 +26,12 @@ export default function ChatPage() {
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    // Limiter à 10MB pour éviter de saturer Groq
+    if (file.size > 10 * 1024 * 1024) {
+      alert("Image trop lourde (max 10MB)");
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = () => {
@@ -34,6 +43,14 @@ export default function ChatPage() {
   const removeImage = () => {
     setImage(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const autoResize = () => {
+    const el = textareaRef.current;
+    if (el) {
+      el.style.height = "auto";
+      el.style.height = Math.min(el.scrollHeight, 200) + "px";
+    }
   };
 
   const sendMessage = async () => {
@@ -50,6 +67,9 @@ export default function ChatPage() {
     setInput("");
     setImage(null);
     setLoading(true);
+
+    // Reset hauteur textarea
+    if (textareaRef.current) textareaRef.current.style.height = "auto";
 
     try {
       const res = await fetch("/api/chat", {
@@ -74,7 +94,7 @@ export default function ChatPage() {
     } catch (error) {
       setMessages([
         ...newMessages,
-        { role: "assistant", content: "Erreur de connexion" },
+        { role: "assistant", content: "Erreur de connexion au serveur" },
       ]);
     } finally {
       setLoading(false);
@@ -91,7 +111,7 @@ export default function ChatPage() {
   return (
     <div className="flex flex-col h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white border-b px-6 py-4 shadow-sm">
+      <header className="bg-white border-b px-6 py-4 shadow-sm flex-shrink-0">
         <h1 className="text-xl font-semibold text-gray-800">Vision Chat</h1>
         <p className="text-sm text-gray-500">Qwen 3.8 27B via Groq</p>
       </header>
@@ -107,7 +127,9 @@ export default function ChatPage() {
         {messages.map((msg, idx) => (
           <div
             key={idx}
-            className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+            className={`flex ${
+              msg.role === "user" ? "justify-end" : "justify-start"
+            }`}
           >
             <div
               className={`max-w-2xl rounded-2xl px-4 py-3 ${
@@ -123,7 +145,16 @@ export default function ChatPage() {
                   className="max-w-xs rounded-lg mb-2"
                 />
               )}
-              <p className="whitespace-pre-wrap">{msg.content}</p>
+
+              {msg.role === "assistant" ? (
+                <div className="prose prose-sm max-w-none">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {msg.content}
+                  </ReactMarkdown>
+                </div>
+              ) : (
+                <p className="whitespace-pre-wrap">{msg.content}</p>
+              )}
             </div>
           </div>
         ))}
@@ -150,20 +181,20 @@ export default function ChatPage() {
       </div>
 
       {/* Input */}
-      <div className="bg-white border-t p-4">
+      <div className="bg-white border-t p-4 flex-shrink-0">
         {image && (
           <div className="mb-2 relative inline-block">
             <img src={image} alt="preview" className="h-20 rounded-lg border" />
             <button
               onClick={removeImage}
-              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 text-xs"
+              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center"
             >
               ×
             </button>
           </div>
         )}
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
           <input
             type="file"
             accept="image/*"
@@ -174,26 +205,43 @@ export default function ChatPage() {
 
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+            className="px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors flex-shrink-0"
             title="Ajouter une image"
           >
-            📷
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-5 w-5 text-gray-600"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+              />
+            </svg>
           </button>
 
           <textarea
+            ref={textareaRef}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => {
+              setInput(e.target.value);
+              autoResize();
+            }}
             onKeyDown={handleKeyDown}
             placeholder="Pose ta question..."
             rows={1}
-            className="flex-1 border rounded-lg px-4 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex-1 border border-gray-300 rounded-lg px-4 py-2 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 min-h-[42px] max-h-[200px]"
             disabled={loading}
           />
 
           <button
             onClick={sendMessage}
             disabled={loading || (!input.trim() && !image)}
-            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed"
+            className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed flex-shrink-0"
           >
             {loading ? "..." : "Envoyer"}
           </button>
